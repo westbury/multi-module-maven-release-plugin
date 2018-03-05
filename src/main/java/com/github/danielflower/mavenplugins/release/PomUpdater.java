@@ -1,18 +1,17 @@
 package com.github.danielflower.mavenplugins.release;
 
 import java.io.File;
-import java.io.Writer;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Properties;
 
 import org.apache.maven.model.Dependency;
 import org.apache.maven.model.Model;
 import org.apache.maven.model.Plugin;
-import org.apache.maven.model.io.xpp3.MavenXpp3Writer;
 import org.apache.maven.plugin.logging.Log;
 import org.apache.maven.project.MavenProject;
-import org.codehaus.plexus.util.WriterFactory;
 
 public class PomUpdater {
 
@@ -38,22 +37,40 @@ public class PomUpdater {
                 errors.addAll(errorsForCurrentPom);
 
                 File pom = project.getFile().getCanonicalFile();
+                
+                byte[] bytes = Files.readAllBytes(pom.toPath());
+                String pomContents = new String(bytes);
+                Project pomProjectUpdater = new Project(pomContents);
+                
                 changedPoms.add(pom);
-                Writer fileWriter = WriterFactory.newXmlWriter(pom);
-
-                Model originalModel = project.getOriginalModel();
-                try {
-                    MavenXpp3Writer pomWriter = new MavenXpp3Writer();
-                    pomWriter.write(fileWriter, originalModel);
-                } finally {
-                    fileWriter.close();
+                
+                pomProjectUpdater.setVersion(module.getNewVersion());
+                if (module.getProject().getParent() != null) {
+                	pomProjectUpdater.setParentVersion(module.getProject().getOriginalModel().getParent().getVersion());
                 }
+                
+                for (Dependency dependency : module.getProject().getModel().getDependencies()) {
+                	Optional<ReleasableModule> dependentProject = findProject(dependency.getGroupId(), dependency.getArtifactId());
+                	// It may be a dependency on a project outside our reactor, in which
+                	// case we will never be changing the version.
+                	if (dependentProject.isPresent()) {
+                		pomProjectUpdater.setDependencyVersion(dependency.getGroupId(), dependency.getArtifactId(), dependentProject.get().getNewVersion());
+                	}
+                }
+                
+                String newContents = pomProjectUpdater.getPom();
+    			byte[] newBytes = newContents.getBytes();
+    			Files.write(pom.toPath(), newBytes);
             } catch (Exception e) {
                 return new UpdateResult(changedPoms, errors, e);
             }
         }
         return new UpdateResult(changedPoms, errors, null);
     }
+
+	private Optional<ReleasableModule> findProject(String groupId, String artifactId) {
+		return reactor.getModulesInBuildOrder().stream().filter(p -> p.getGroupId().equals(groupId) && p.getArtifactId().equals(artifactId)).findFirst();
+	}    		
 
     public static class UpdateResult {
         public final List<File> alteredPoms;
