@@ -91,19 +91,25 @@ public class NestedModulesTest {
     }
 
     private void buildsEachProjectOnceAndOnlyOnce(List<String> commandOutput) throws Exception {
+		if (testProject.runInProcess) {
+			// once for release build as there is no initial build when run in-process
+			assertThat(commandOutput, oneOf(containsString("Building nested-project")));
+		} else {
+			// once for initial build; once for release build
+			assertThat(commandOutput, twoOf(containsString("Building nested-project")));
+		}
         assertThat(
-            commandOutput,
-            allOf(
-                twoOf(containsString("Building nested-project")), // once for initial build; once for release build
-                oneOf(containsString("Building core-utils")),
-                oneOf(containsString("Building console-app")),
-                oneOf(containsString("Building parent-module")),
-                oneOf(containsString("Building server-modules")),
-                oneOf(containsString("Building server-module-a")),
-                oneOf(containsString("Building server-module-b")),
-                oneOf(containsString("Building server-module-c"))
-            )
-        );
+                commandOutput,
+                allOf(
+                    oneOf(containsString("Building core-utils")),
+                    oneOf(containsString("Building console-app")),
+                    oneOf(containsString("Building parent-module")),
+                    oneOf(containsString("Building server-modules")),
+                    oneOf(containsString("Building server-module-a")),
+                    oneOf(containsString("Building server-module-b")),
+                    oneOf(containsString("Building server-module-c"))
+                )
+            );
     }
 
     private void installsAllModulesIntoTheRepoWithTheBuildNumber() throws Exception {

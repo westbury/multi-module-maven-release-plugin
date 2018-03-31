@@ -91,9 +91,9 @@ public class MvnRunner {
         }
         List<String> output = logOutput.getLines();
 
-        if (exitCode != 0) {
-            throw new MavenExecutionException(exitCode, output);
-        }
+//        if (exitCode != 0) {
+//            throw new MavenExecutionException(exitCode, output);
+//        }
 
         return output;
     }

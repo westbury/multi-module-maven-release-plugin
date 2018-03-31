@@ -13,7 +13,7 @@ import java.util.List;
 /**
  *
  */
-public class ResolverWrapper {
+public class ResolverWrapper implements Resolver {
 
     private final ArtifactFactory factory;
 

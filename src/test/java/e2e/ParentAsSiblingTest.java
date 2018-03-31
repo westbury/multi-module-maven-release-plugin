@@ -42,19 +42,21 @@ public class ParentAsSiblingTest {
         theLocalAndRemoteGitReposAreTaggedWithTheModuleNameAndVersion();
     }
 
-    private void buildsEachProjectOnceAndOnlyOnce(List<String> commandOutput) throws Exception {
-        assertThat(
-            commandOutput,
-            allOf(
-                oneOf(containsString("Going to release parent-as-sibling " + expectedAggregatorVersion)),
-                twoOf(containsString("Building parent-as-sibling")), // once for initial build; once for release build
-                oneOf(containsString("Building parent-module")),
-                oneOf(containsString("Building core-utils")),
-                oneOf(containsString("Building console-app")),
-                oneOf(containsString("The Calculator Test has run"))
-            )
-        );
-    }
+	private void buildsEachProjectOnceAndOnlyOnce(List<String> commandOutput) throws Exception {
+		assertThat(commandOutput,
+				oneOf(containsString("Going to release parent-as-sibling " + expectedAggregatorVersion)));
+		if (testProject.runInProcess) {
+			// just once because no initial build when running in-process
+			assertThat(commandOutput, oneOf(containsString("Building parent-as-sibling")));
+		} else {
+			// once for initial build; once for release build
+			assertThat(commandOutput, twoOf(containsString("Building parent-as-sibling")));
+		}
+		assertThat(commandOutput, oneOf(containsString("Building parent-module")));
+		assertThat(commandOutput, oneOf(containsString("Building core-utils")));
+		assertThat(commandOutput, oneOf(containsString("Building console-app")));
+		assertThat(commandOutput, oneOf(containsString("The Calculator Test has run")));
+	}
 
     private void installsAllModulesIntoTheRepoWithTheBuildNumber() throws Exception {
         assertArtifactInLocalRepo("com.github.danielflower.mavenplugins.testprojects.parentassibling", "parent-as-sibling", expectedAggregatorVersion);

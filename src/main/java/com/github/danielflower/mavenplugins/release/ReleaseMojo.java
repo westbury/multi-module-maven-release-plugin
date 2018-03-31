@@ -6,6 +6,9 @@ import org.apache.maven.plugin.logging.Log;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.settings.io.DefaultSettingsWriter;
+import org.apache.maven.shared.invoker.DefaultInvocationRequest;
+import org.apache.maven.shared.invoker.DefaultInvoker;
+import org.apache.maven.shared.invoker.InvocationOutputHandler;
 import org.eclipse.jgit.api.errors.GitAPIException;
 
 import java.io.File;
@@ -135,6 +138,8 @@ public class ReleaseMojo extends BaseMojo {
     @Parameter(alias = "ignoredUntrackedPaths", property = "ignoredUntrackedPaths")
     private Set<String> ignoredUntrackedPaths = new HashSet<>();
 
+	protected Resolver resolverWrapper;
+    
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
         Log log = getLog();
@@ -157,8 +162,12 @@ public class ReleaseMojo extends BaseMojo {
                 .credentialsProvider(getCredentialsProvider(log))
                 .buildFromCurrentDir();
             repo.errorIfNotClean(ignoredUntrackedPaths);
-
-            ResolverWrapper resolverWrapper = new ResolverWrapper(factory, artifactResolver, remoteRepositories, localRepository);
+            
+            // If a test resolver has not been injected, use the real resolver
+            if (resolverWrapper == null) {
+            	resolverWrapper = new ResolverWrapper(factory, artifactResolver, remoteRepositories, localRepository);
+            }
+            
             Reactor reactor = Reactor.fromProjects(log, repo, project, projects, buildNumber, modulesToForceRelease, noChangesAction, resolverWrapper, versionNamer);
             if (reactor == null) {
                 return;
@@ -180,7 +189,17 @@ public class ReleaseMojo extends BaseMojo {
             tagAndPushRepo(log, repo, proposedTags);
 
             try {
-            	final ReleaseInvoker invoker = new ReleaseInvoker(getLog(), project);
+            	DefaultInvocationRequest invocationRequest = new DefaultInvocationRequest();
+				final ReleaseInvoker invoker = new ReleaseInvoker(getLog(), project, invocationRequest, new DefaultInvoker());
+            	invocationRequest.setOutputHandler(new InvocationOutputHandler() {
+
+					@Override
+					public void consumeLine(String arg0) {
+						log.info(arg0);// TODO Auto-generated method stub
+						
+					}
+				});
+            	
             	invoker.setGlobalSettings(globalSettings);
                 if (userSettings != null) {
                     invoker.setUserSettings(userSettings);
