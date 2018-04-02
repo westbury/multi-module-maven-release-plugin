@@ -58,7 +58,7 @@ public class TestProject {
 	
 	public boolean runInProcess = true;
 
-    private TestProject(File originDir, Git origin, File localDir, Git local) {
+    public TestProject(File originDir, Git origin, File localDir, Git local) {
         this.originDir = originDir;
         this.origin = origin;
         this.localDir = localDir;
@@ -122,25 +122,43 @@ public class TestProject {
     				}
     			}
     			
-    	    	for (MavenProject childProject : projects) {
-    				if (childProject.getParent() == null) {
-    					Parent parentCoordinates = childProject.getModel().getParent();
-						if (parentCoordinates != null) {
-    						Optional<MavenProject> parentProject = findProject(projects, parentCoordinates.getGroupId(), parentCoordinates.getArtifactId());
-    						childProject.setParent(parentProject.get());
-    					} else {
-    						childProject.setParent(null);
-    					}
-    				}
-
-    				Parent parentCoordinates = childProject.getModel().getParent();
-    				if (parentCoordinates != null) {
-    				Optional<MavenProject> parentProject = findProject(projects, parentCoordinates.getGroupId(), parentCoordinates.getArtifactId());
-    				childProject.setParent(parentProject.get());
-    				}
-
+    			// Iterate over a copy of the list of projects, because parent projects
+    			// may be added to the list.
+    			List<MavenProject> preexistingProjects = new ArrayList<>(projects);
+    	    	for (MavenProject childProject : preexistingProjects) {
+    				setParentReference(childProject);
     	    	}
     		}
+
+			private void setParentReference(MavenProject childProject) {
+				if (childProject.getParent() == null) {
+					Parent parentCoordinates = childProject.getModel().getParent();
+					if (parentCoordinates != null) {
+						Optional<MavenProject> parentProject = findProject(projects, parentCoordinates.getGroupId(), parentCoordinates.getArtifactId());
+						
+						MavenProject parentProjectValue;
+						if (!parentProject.isPresent()) {
+							String relativePathToParent = parentCoordinates.getRelativePath();
+							if (relativePathToParent == null) {
+								throw new RuntimeException("Parent project not in projects and no relative path specified");
+							}
+							
+							Path pathToParent = childProject.getBasedir().toPath().resolve(relativePathToParent);
+							parentProjectValue = readProject(pathToParent);
+							projects.add(parentProjectValue);
+							
+							// And set the parent reference for the parent project if needed (recursive call)
+							setParentReference(parentProjectValue);
+						} else {
+							parentProjectValue = parentProject.get();
+						}
+						childProject.setParent(parentProjectValue);
+						childProject.getOriginalModel().setParent(parentCoordinates);
+					} else {
+						childProject.setParent(null);
+					}
+				}
+			}
 
     		public Log getLog() {
     			return new SystemStreamLog() {

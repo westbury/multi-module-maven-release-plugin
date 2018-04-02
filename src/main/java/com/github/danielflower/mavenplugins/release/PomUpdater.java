@@ -3,20 +3,31 @@ package com.github.danielflower.mavenplugins.release;
 import java.io.File;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
 
 import org.apache.maven.model.Dependency;
 import org.apache.maven.model.Model;
 import org.apache.maven.model.Plugin;
 import org.apache.maven.plugin.logging.Log;
 import org.apache.maven.project.MavenProject;
+import org.eclipse.tycho.versions.engine.EclipseVersionUpdater;
+import org.eclipse.tycho.versions.engine.ProjectMetadata;
+import org.eclipse.tycho.versions.engine.ProjectMetadataReader;
 
 public class PomUpdater {
 
     private final Log log;
     private final Reactor reactor;
+
+    private EclipseVersionUpdater metadataUpdater = new EclipseVersionUpdater();
+
+	private ProjectMetadataReader pomReader = new ProjectMetadataReader();
+
 
     public PomUpdater(Log log, Reactor reactor) {
         this.log = log;
@@ -27,8 +38,8 @@ public class PomUpdater {
         List<File> changedPoms = new ArrayList<File>();
         List<String> errors = new ArrayList<String>();
         for (ReleasableModule module : reactor.getModulesInBuildOrder()) {
-            try {
-                MavenProject project = module.getProject();
+        	try {
+        		MavenProject project = module.getProject();
                 if (module.willBeReleased()) {
                     log.info("Going to release " + module.getArtifactId() + " " + module.getNewVersion());
                 }
@@ -46,7 +57,10 @@ public class PomUpdater {
                 
                 pomProjectUpdater.setVersion(module.getNewVersion());
                 if (module.getProject().getParent() != null) {
-                	pomProjectUpdater.setParentVersion(module.getProject().getOriginalModel().getParent().getVersion());
+                	// Find the module for the parent
+                	MavenProject parentProject = module.getProject().getParent();
+                	Optional<ReleasableModule> parentModule = findProject(parentProject.getGroupId(), parentProject.getArtifactId());
+                	pomProjectUpdater.setParentVersion(parentModule.get().getNewVersion());
                 }
                 
                 for (Dependency dependency : module.getProject().getModel().getDependencies()) {
@@ -61,10 +75,35 @@ public class PomUpdater {
                 String newContents = pomProjectUpdater.getPom();
     			byte[] newBytes = newContents.getBytes();
     			Files.write(pom.toPath(), newBytes);
+    			
+//???    			releaseDescriptor.setUpdatedFiles(updatedFiles);
+
             } catch (Exception e) {
                 return new UpdateResult(changedPoms, errors, e);
             }
         }
+        
+        // We now do the Eclipse stuff, which must be done in a separate loop
+        // after all pom versions have been updated in the prior loop.
+        for (ReleasableModule module : reactor.getModulesInBuildOrder()) {
+        	try {
+        		MavenProject project = module.getProject();
+
+    			// Do the eclipse stuff
+    			Set<String> updatedFiles = null; //??? releaseDescriptor.getUpdatedFiles();
+    			if (updatedFiles == null) {
+    				updatedFiles = new HashSet<>();
+    			}
+    			metadataUpdater.setProjects(Collections.singletonList(project));
+    			metadataUpdater.setUpdatedFiles(updatedFiles);
+    			metadataUpdater.apply();
+
+            } catch (Exception e) {
+                return new UpdateResult(changedPoms, errors, e);
+            }
+        }
+        
+
         return new UpdateResult(changedPoms, errors, null);
     }
 

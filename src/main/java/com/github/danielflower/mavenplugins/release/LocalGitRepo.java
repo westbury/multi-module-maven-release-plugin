@@ -156,16 +156,16 @@ public class LocalGitRepo {
             return true;
         }
         boolean hasErrors = false;
-        File workTree = workingDir();
-        for (File changedFile : changedFiles) {
-            try {
-                String pathRelativeToWorkingTree = Repository.stripWorkDir(workTree, changedFile);
-                git.checkout().addPath(pathRelativeToWorkingTree).call();
-            } catch (Exception e) {
-                hasErrors = true;
-                log.error("Unable to revert changes to " + changedFile + " - you may need to manually revert this file. Error was: " + e.getMessage());
-            }
-        }
+//        File workTree = workingDir();
+//        for (File changedFile : changedFiles) {
+//            try {
+//                String pathRelativeToWorkingTree = Repository.stripWorkDir(workTree, changedFile);
+//                git.checkout().addPath(pathRelativeToWorkingTree).call();
+//            } catch (Exception e) {
+//                hasErrors = true;
+//                log.error("Unable to revert changes to " + changedFile + " - you may need to manually revert this file. Error was: " + e.getMessage());
+//            }
+//        }
         hasReverted = true;
         return !hasErrors;
     }

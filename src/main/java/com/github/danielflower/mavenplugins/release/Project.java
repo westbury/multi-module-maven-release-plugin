@@ -243,7 +243,12 @@ public class Project {
 	}
 
 	public void setVersion(String newVersion) {
-		version.setValue(newVersion);
+		/* If version is inherited from parent then, for the time being,
+		 * we assume here it remains inherited even if the parent version changes.
+		 */
+		if (version != null) {
+			version.setValue(newVersion);
+		}
 	}
 
 	public void setParentVersion(String newVersion) {
